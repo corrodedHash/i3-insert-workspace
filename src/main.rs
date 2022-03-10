@@ -15,8 +15,9 @@ mod docker_name;
 
 /// Simple program to insert a named workspace before or after another workspace
 #[derive(clap::Parser, Debug)]
+#[clap(version)]
 struct Args {
-    /// Workspace after or before which the new workspace is inserted.
+    /// Workspace before or after which the new workspace is inserted.
     /// default: current
     #[clap(short, long)]
     pivot: Option<String>,
