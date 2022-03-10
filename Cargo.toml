@@ -1,0 +1,22 @@
+[package]
+name = "i3-insert-workspace"
+description = "Tool for flexible creation of named workspaces in the i3 window manager"
+version = "0.1.0"
+edition = "2021"
+license-file = "LICENSE"
+repository = "https://github.com/corrodedHash/i3-insert-workspace"
+readme = "README.md"
+keywords = ["i3", "i3 ipc", "workspace"]
+categories = ["command-line-utilities", "config"]
+
+[dependencies]
+i3ipc = "0.10.1"
+clap = {version = "3.1.6", features = ["derive"]}
+rand = "0.8.4"
+
+[profile.release]
+strip = true
+opt-level = "z"
+lto = "fat"
+codegen-units = 1
+panic = "abort"
