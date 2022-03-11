@@ -4,7 +4,7 @@
     clippy::indexing_slicing,
     clippy::unwrap_used,
     clippy::expect_used,
-    clippy::print_stdout,
+    clippy::print_stdout
 )]
 #![warn(clippy::cargo)]
 
@@ -71,6 +71,7 @@ impl std::fmt::Display for InsertionError {
     }
 }
 
+/// Insert a new workspace at the given location
 #[allow(clippy::indexing_slicing)]
 fn insert_workspace(
     conn: &mut i3ipc::I3Connection,
@@ -103,6 +104,7 @@ fn insert_workspace(
     let rename_commands: Vec<_> = t.workspaces[start_id..stop_id]
         .iter()
         .filter(|x| x.name != name)
+        // Renaming moves the workspace to the end of list of workspaces in the output
         .map(|x| format!("rename workspace \"{0}\" to \"{0}\";", x.name.clone()))
         .collect();
 
@@ -120,13 +122,16 @@ fn insert_workspace(
     .map(|_| ())
 }
 
-struct I3Focus {
+/// The location of a container, given by the output and workspace that contains it
+struct I3Container {
+    #[allow(dead_code)]
     output: String,
     workspace: String,
     container: i64,
 }
 
-fn focused(conn: &mut i3ipc::I3Connection) -> Result<I3Focus, String> {
+/// Get the currently focused output, workspace and container
+fn focused(conn: &mut i3ipc::I3Connection) -> Result<I3Container, String> {
     let t = conn
         .get_tree()
         .map_err(|e| format!("Could not get tree: {}", e))?;
@@ -161,13 +166,14 @@ fn focused(conn: &mut i3ipc::I3Connection) -> Result<I3Focus, String> {
             );
         }
     }
-    Ok(I3Focus {
+    Ok(I3Container {
         output: output.ok_or_else(|| "Focused display not found".to_owned())?,
         workspace: workspace.ok_or_else(|| "Focused workspace not found".to_owned())?,
         container: current.id,
     })
 }
 
+/// Generate a random name, make sure no workspace with this name exists already
 fn generate_new_workspace_name(conn: &mut i3ipc::I3Connection) -> Result<String, String> {
     let workspace_names = conn
         .get_workspaces()

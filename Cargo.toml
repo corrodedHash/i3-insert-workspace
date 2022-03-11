@@ -4,7 +4,6 @@ description = "Tool for flexible creation of named workspaces in the i3 window m
 version = "1.0.0"
 edition = "2021"
 license = "MIT"
-license-file = "LICENSE"
 repository = "https://github.com/corrodedHash/i3-insert-workspace"
 readme = "README.md"
 keywords = ["i3", "i3ipc", "workspace"]
