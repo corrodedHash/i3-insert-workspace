@@ -9,7 +9,7 @@
 #![warn(clippy::cargo)]
 
 //! Workspace enhancement for the i3 window manager
-//! Insert a named workspace before or after another workspace
+//! Insert a named workspace before or after another named workspace
 use clap::Parser;
 mod docker_name;
 mod insert_workspace;
@@ -21,12 +21,12 @@ use insert_workspace::{insert_workspace, InsertionDestination, InsertionError};
 #[clap(version)]
 struct Args {
     /// Workspace before or after which the new workspace is inserted.
-    /// default: current
+    ///
+    /// If no pivot given, using focused workspaces
     #[clap(short, long)]
     pivot: Option<String>,
 
-    /// When using pivot, should insert before or after pivot.
-    /// When no pivot supplied, using focused workspace
+    /// Insert before the pivot instead of after it.
     #[clap(short, long)]
     before: bool,
 
@@ -34,7 +34,8 @@ struct Args {
     #[clap(short, long)]
     name: Option<String>,
 
-    /// Move container to new workspace
+    /// Move container to the new workspace.
+    ///
     /// Either provide container id, or `focused` for focused one
     #[clap(short, long)]
     container_id: Option<String>,
@@ -160,7 +161,7 @@ fn handle() -> Result<(), MainError> {
     )?;
 
     let parse_container_id = |container_id: String| {
-        if container_id.to_ascii_lowercase() == "current" {
+        if container_id.to_ascii_lowercase() == "focused" {
             Ok(focus.container)
         } else {
             container_id
