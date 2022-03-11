@@ -12,6 +12,9 @@
 //! Insert a named workspace before or after another workspace
 use clap::Parser;
 mod docker_name;
+mod insert_workspace;
+
+use insert_workspace::{insert_workspace, InsertionDestination, InsertionError};
 
 /// Simple program to insert a named workspace before or after another workspace
 #[derive(clap::Parser, Debug)]
@@ -37,93 +40,8 @@ struct Args {
     container_id: Option<String>,
 }
 
-/// Insert workspace before or after pivot
-#[derive(Clone, PartialEq, Eq, Debug)]
-enum InsertionArg {
-    After { pivot: String },
-    Before { pivot: String },
-}
-
-/// Errors for `insert_workspace`
-#[derive(Debug)]
-enum InsertionError {
-    NoPivotWorkspace,
-    CommandError(i3ipc::MessageError),
-}
-
-impl std::error::Error for InsertionError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::CommandError(e) => Some(e),
-            Self::NoPivotWorkspace => None,
-        }
-    }
-}
-
-impl std::fmt::Display for InsertionError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            InsertionError::NoPivotWorkspace => write!(f, "Could not find workspace"),
-            InsertionError::CommandError(error_message) => {
-                write!(f, "i3 IPC error message: {}", error_message)
-            }
-        }
-    }
-}
-
-/// Insert a new workspace at the given location
-#[allow(clippy::indexing_slicing)]
-fn insert_workspace(
-    conn: &mut i3ipc::I3Connection,
-    insertion_marker: &InsertionArg,
-    name: &str,
-    container: Option<i64>,
-) -> Result<(), InsertionError> {
-    let t = conn
-        .get_workspaces()
-        .map_err(InsertionError::CommandError)?;
-
-    let (mut start_id, stop_id, output) = match &insertion_marker {
-        InsertionArg::After { pivot } | InsertionArg::Before { pivot } => {
-            let start_id = t
-                .workspaces
-                .iter()
-                .position(|x| &x.name == pivot)
-                .ok_or(InsertionError::NoPivotWorkspace)?;
-            let output = t.workspaces[start_id].output.clone();
-            let stop_id = t.workspaces[start_id..]
-                .iter()
-                .position(|x| x.output != output)
-                .map_or(t.workspaces.len(), |x| x + start_id);
-            (start_id, stop_id, output)
-        }
-    };
-    if let InsertionArg::After { .. } = insertion_marker {
-        start_id += 1;
-    }
-    let rename_commands: Vec<_> = t.workspaces[start_id..stop_id]
-        .iter()
-        .filter(|x| x.name != name)
-        // Renaming moves the workspace to the end of list of workspaces in the output
-        .map(|x| format!("rename workspace \"{0}\" to \"{0}\";", x.name.clone()))
-        .collect();
-
-    let creation_command = if let Some(container_id) = container {
-        format!("[con_id={container_id}] move container to workspace {name}")
-    } else {
-        format!("workspace \"{name}\"")
-    };
-
-    conn.run_command(&format!(
-        "{creation_command}; move workspace to output {output}; {}",
-        rename_commands.join("")
-    ))
-    .map_err(InsertionError::CommandError)
-    .map(|_| ())
-}
-
 /// The location of a container, given by the output and workspace that contains it
-struct I3Container {
+struct I3ConLocation {
     #[allow(dead_code)]
     output: String,
     workspace: String,
@@ -131,7 +49,7 @@ struct I3Container {
 }
 
 /// Get the currently focused output, workspace and container
-fn focused(conn: &mut i3ipc::I3Connection) -> Result<I3Container, String> {
+fn focused(conn: &mut i3ipc::I3Connection) -> Result<I3ConLocation, String> {
     let t = conn
         .get_tree()
         .map_err(|e| format!("Could not get tree: {}", e))?;
@@ -149,24 +67,28 @@ fn focused(conn: &mut i3ipc::I3Connection) -> Result<I3Container, String> {
             .iter()
             .find(|x| x.id == next_focus_item)
             .ok_or_else(|| "Focus array in i3-msg reply wrong".to_owned())?;
-        if current.nodetype == i3ipc::reply::NodeType::Output {
-            output = Some(
-                current
-                    .name
-                    .clone()
-                    .ok_or_else(|| "output has no name".to_owned())?,
-            );
-        }
-        if current.nodetype == i3ipc::reply::NodeType::Workspace {
-            workspace = Some(
-                current
-                    .name
-                    .clone()
-                    .ok_or_else(|| "output has no name".to_owned())?,
-            );
+
+        match current.nodetype {
+            i3ipc::reply::NodeType::Output => {
+                output = Some(
+                    current
+                        .name
+                        .clone()
+                        .ok_or_else(|| "Output has no name".to_owned())?,
+                );
+            }
+            i3ipc::reply::NodeType::Workspace => {
+                workspace = Some(
+                    current
+                        .name
+                        .clone()
+                        .ok_or_else(|| "Workspace has no name".to_owned())?,
+                );
+            }
+            _ => (),
         }
     }
-    Ok(I3Container {
+    Ok(I3ConLocation {
         output: output.ok_or_else(|| "Focused display not found".to_owned())?,
         workspace: workspace.ok_or_else(|| "Focused workspace not found".to_owned())?,
         container: current.id,
@@ -190,71 +112,71 @@ fn generate_new_workspace_name(conn: &mut i3ipc::I3Connection) -> Result<String,
     }
 }
 
-fn main() {
+#[derive(Debug)]
+enum MainError {
+    Insertion(InsertionError),
+    Connection(i3ipc::EstablishError),
+    Communication(String),
+    ParseCointainerID(std::num::ParseIntError),
+}
+
+impl From<InsertionError> for MainError {
+    fn from(e: InsertionError) -> Self {
+        Self::Insertion(e)
+    }
+}
+
+impl From<i3ipc::EstablishError> for MainError {
+    fn from(e: i3ipc::EstablishError) -> Self {
+        Self::Connection(e)
+    }
+}
+
+impl std::fmt::Display for MainError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            MainError::Insertion(i) => write!(f, "Error during insertion: {}", i),
+            MainError::Connection(c) => write!(f, "Could not connect to i3 IPC: {}", c),
+            MainError::Communication(c) => write!(f, "IPC communication error: {}", c),
+            MainError::ParseCointainerID(p) => write!(f, "Non-numeric container id: {}", p),
+        }
+    }
+}
+
+fn handle() -> Result<(), MainError> {
     let args = Args::parse();
 
-    let mut conn = match i3ipc::I3Connection::connect() {
-        Ok(conn) => conn,
-        Err(e) => {
-            eprintln!("Could not establish connection to i3 IPC: {}", e);
-            return;
-        }
-    };
+    let mut conn = i3ipc::I3Connection::connect()?;
 
-    let focus = match focused(&mut conn) {
-        Ok(res) => res,
-        Err(e) => {
-            eprintln!("{}", e);
-            return;
-        }
-    };
+    let focus = focused(&mut conn).map_err(MainError::Communication)?;
 
-    let pivot = if let Some(pivot) = args.pivot {
-        pivot
-    } else {
-        focus.workspace
-    };
+    let pivot = args.pivot.unwrap_or(focus.workspace);
 
-    let x = if args.before {
-        InsertionArg::Before {
-            pivot: pivot.clone(),
-        }
-    } else {
-        InsertionArg::After {
-            pivot: pivot.clone(),
-        }
-    };
+    let destination = InsertionDestination::new(pivot, args.before);
 
-    let name = if let Some(name) = args.name {
-        name
-    } else {
-        match generate_new_workspace_name(&mut conn) {
-            Ok(name) => name,
-            Err(e) => {
-                eprintln!("{e}");
-                return;
-            }
-        }
-    };
+    let name = args.name.map_or_else(
+        || generate_new_workspace_name(&mut conn).map_err(MainError::Communication),
+        Ok,
+    )?;
 
-    let container_id = if let Some(container_id) = args.container_id {
+    let parse_container_id = |container_id: String| {
         if container_id.to_ascii_lowercase() == "current" {
-            Some(focus.container)
-        } else if let Ok(parsed_container_id) = container_id.parse::<i64>() {
-            Some(parsed_container_id)
+            Ok(focus.container)
         } else {
-            eprintln!("Could not parse container id {}", container_id);
-            return;
+            container_id
+                .parse::<i64>()
+                .map_err(MainError::ParseCointainerID)
         }
-    } else {
-        None
     };
 
-    match insert_workspace(&mut conn, &x, &name, container_id) {
-        Ok(_) => (),
-        Err(e) => match e {
-            InsertionError::NoPivotWorkspace => eprintln!("Could not find workspace \"{}\"", pivot),
-            InsertionError::CommandError(_) => eprintln!("{}", e),
-        },
+    let container_id = args.container_id.map(parse_container_id).transpose()?;
+
+    insert_workspace(&mut conn, &destination, &name, container_id)?;
+    Ok(())
+}
+
+fn main() {
+    if let Err(e) = handle() {
+        eprintln!("{}", e);
     }
 }
