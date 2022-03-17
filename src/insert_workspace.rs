@@ -1,3 +1,5 @@
+use thiserror::Error;
+
 /// Insert workspace before or after pivot
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum InsertionDestination {
@@ -21,38 +23,16 @@ impl InsertionDestination {
 }
 
 /// Errors for `insert_workspace`
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum InsertionError {
+    #[error("Could not find workspace \"{0}\"")]
     NoPivotWorkspace(String),
-    CommandError(i3ipc::MessageError),
-}
-
-impl From<i3ipc::MessageError> for InsertionError {
-    fn from(e: i3ipc::MessageError) -> Self {
-        Self::CommandError(e)
-    }
-}
-
-impl std::error::Error for InsertionError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::CommandError(e) => Some(e),
-            Self::NoPivotWorkspace(_) => None,
-        }
-    }
-}
-
-impl std::fmt::Display for InsertionError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            InsertionError::NoPivotWorkspace(pivot) => {
-                write!(f, "Could not find workspace \"{}\"", pivot)
-            }
-            InsertionError::CommandError(error_message) => {
-                write!(f, "i3 IPC error message: {}", error_message)
-            }
-        }
-    }
+    #[error("i3 IPC error message: \"{0}\"")]
+    CommandError(
+        #[from]
+        #[source]
+        i3ipc::MessageError,
+    ),
 }
 
 /// Insert a new workspace at the given location

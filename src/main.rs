@@ -16,6 +16,8 @@ mod insert_workspace;
 
 use insert_workspace::{insert_workspace, InsertionDestination, InsertionError};
 
+use thiserror::Error;
+
 /// Simple program to insert a named workspace before or after another workspace
 #[derive(clap::Parser, Debug)]
 #[clap(version)]
@@ -49,58 +51,62 @@ struct I3ConLocation {
     container: i64,
 }
 
+#[derive(Debug, Error)]
+enum FocusError {
+    #[error("Could not get tree: {0}")]
+    IPCCommunication(#[from] i3ipc::MessageError),
+    #[error("Focus chain in tree incorrect")]
+    BrokenFocusChain,
+    #[error("Focus entry incorrect")]
+    IncorrectFocusEntry,
+    #[error("Focused output unnamed")]
+    UnnamedOutput,
+    #[error("Focused workspace unnamed")]
+    UnnamedWorkspace,
+    #[error("No focused output found")]
+    OutputNameNotFound,
+    #[error("No focused workspace found")]
+    WorkspaceNameNotFound,
+}
+
 /// Get the currently focused output, workspace and container
-fn focused(conn: &mut i3ipc::I3Connection) -> Result<I3ConLocation, String> {
-    let t = conn
-        .get_tree()
-        .map_err(|e| format!("Could not get tree: {}", e))?;
+fn focused(conn: &mut i3ipc::I3Connection) -> Result<I3ConLocation, FocusError> {
+    let t = conn.get_tree().map_err(FocusError::IPCCommunication)?;
 
     let mut current = &t;
     let mut output = None;
     let mut workspace = None;
     while !current.focused {
-        let next_focus_item = *current
-            .focus
-            .first()
-            .ok_or_else(|| "Focus chain broken".to_owned())?;
+        let next_focus_item = *current.focus.first().ok_or(FocusError::BrokenFocusChain)?;
         current = current
             .nodes
             .iter()
             .find(|x| x.id == next_focus_item)
-            .ok_or_else(|| "Focus array in i3-msg reply wrong".to_owned())?;
+            .ok_or(FocusError::IncorrectFocusEntry)?;
 
         match current.nodetype {
             i3ipc::reply::NodeType::Output => {
-                output = Some(
-                    current
-                        .name
-                        .clone()
-                        .ok_or_else(|| "Output has no name".to_owned())?,
-                );
+                output = Some(current.name.as_ref().ok_or(FocusError::UnnamedOutput)?);
             }
             i3ipc::reply::NodeType::Workspace => {
-                workspace = Some(
-                    current
-                        .name
-                        .clone()
-                        .ok_or_else(|| "Workspace has no name".to_owned())?,
-                );
+                workspace = Some(current.name.as_ref().ok_or(FocusError::UnnamedWorkspace)?);
             }
             _ => (),
         }
     }
     Ok(I3ConLocation {
-        output: output.ok_or_else(|| "Focused display not found".to_owned())?,
-        workspace: workspace.ok_or_else(|| "Focused workspace not found".to_owned())?,
+        output: output.ok_or(FocusError::OutputNameNotFound)?.clone(),
+        workspace: workspace.ok_or(FocusError::WorkspaceNameNotFound)?.clone(),
         container: current.id,
     })
 }
 
 /// Generate a random name, make sure no workspace with this name exists already
-fn generate_new_workspace_name(conn: &mut i3ipc::I3Connection) -> Result<String, String> {
+fn generate_new_workspace_name(
+    conn: &mut i3ipc::I3Connection,
+) -> Result<String, i3ipc::MessageError> {
     let workspace_names = conn
-        .get_workspaces()
-        .map_err(|x| format!("{}", x))?
+        .get_workspaces()?
         .workspaces
         .into_iter()
         .map(|x| x.name)
@@ -113,35 +119,30 @@ fn generate_new_workspace_name(conn: &mut i3ipc::I3Connection) -> Result<String,
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 enum MainError {
-    Insertion(InsertionError),
-    Connection(i3ipc::EstablishError),
-    Communication(String),
-    ParseCointainerID(std::num::ParseIntError),
-}
-
-impl From<InsertionError> for MainError {
-    fn from(e: InsertionError) -> Self {
-        Self::Insertion(e)
-    }
-}
-
-impl From<i3ipc::EstablishError> for MainError {
-    fn from(e: i3ipc::EstablishError) -> Self {
-        Self::Connection(e)
-    }
-}
-
-impl std::fmt::Display for MainError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            MainError::Insertion(i) => write!(f, "Error during insertion: {}", i),
-            MainError::Connection(c) => write!(f, "Could not connect to i3 IPC: {}", c),
-            MainError::Communication(c) => write!(f, "IPC communication error: {}", c),
-            MainError::ParseCointainerID(p) => write!(f, "Non-numeric container id: {}", p),
-        }
-    }
+    #[error("Error during insertion: {0}")]
+    Insertion(
+        #[from]
+        #[source]
+        InsertionError,
+    ),
+    #[error("Could not connect to i3 IPC: {0}")]
+    Connection(
+        #[from]
+        #[source]
+        i3ipc::EstablishError,
+    ),
+    #[error("Container tree error: {0}")]
+    TreeError(#[from] FocusError),
+    #[error("Communication error: {0}")]
+    GenWorkspaceName(i3ipc::MessageError),
+    #[error("Non-numeric container id: {0}")]
+    ParseCointainerID(
+        #[from]
+        #[source]
+        std::num::ParseIntError,
+    ),
 }
 
 fn handle() -> Result<(), MainError> {
@@ -149,14 +150,14 @@ fn handle() -> Result<(), MainError> {
 
     let mut conn = i3ipc::I3Connection::connect()?;
 
-    let focus = focused(&mut conn).map_err(MainError::Communication)?;
+    let focus = focused(&mut conn)?;
 
     let pivot = args.pivot.unwrap_or(focus.workspace);
 
     let destination = InsertionDestination::new(pivot, args.before);
 
     let name = args.name.map_or_else(
-        || generate_new_workspace_name(&mut conn).map_err(MainError::Communication),
+        || generate_new_workspace_name(&mut conn).map_err(MainError::GenWorkspaceName),
         Ok,
     )?;
 
@@ -164,9 +165,7 @@ fn handle() -> Result<(), MainError> {
         if container_id.to_ascii_lowercase() == "focused" {
             Ok(focus.container)
         } else {
-            container_id
-                .parse::<i64>()
-                .map_err(MainError::ParseCointainerID)
+            container_id.parse::<i64>()
         }
     };
 
