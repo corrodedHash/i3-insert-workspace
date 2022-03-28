@@ -37,7 +37,7 @@ pub enum InsertionError {
 
 /// Insert a new workspace at the given location
 #[allow(clippy::indexing_slicing)]
-pub fn insert_workspace(
+pub fn insert_workspace_rename(
     conn: &mut i3ipc::I3Connection,
     insertion_marker: &InsertionDestination,
     name: &str,

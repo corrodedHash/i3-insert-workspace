@@ -4,7 +4,8 @@
     clippy::indexing_slicing,
     clippy::unwrap_used,
     clippy::expect_used,
-    clippy::print_stdout
+    clippy::print_stdout,
+    clippy::todo
 )]
 #![warn(clippy::cargo)]
 
@@ -12,9 +13,9 @@
 //! Insert a named workspace before or after another named workspace
 use clap::Parser;
 mod docker_name;
-mod insert_workspace;
-
-use insert_workspace::{insert_workspace, InsertionDestination, InsertionError};
+// mod insert_workspace_rename;
+mod insert_workspace_swap;
+use insert_workspace_swap::{insert_workspace_swap, InsertionDestination, InsertionError};
 
 use thiserror::Error;
 
@@ -171,7 +172,7 @@ fn handle() -> Result<(), MainError> {
 
     let container_id = args.container_id.map(parse_container_id).transpose()?;
 
-    insert_workspace(&mut conn, &destination, &name, container_id)?;
+    insert_workspace_swap(&mut conn, &destination, &name, container_id)?;
     Ok(())
 }
 
