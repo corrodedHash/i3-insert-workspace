@@ -87,6 +87,7 @@ fn focused(conn: &mut i3ipc::I3Connection) -> Result<I3ConLocation, FocusError> 
         current = current
             .nodes
             .iter()
+            .chain(current.floating_nodes.iter())
             .find(|x| x.id == next_focus_item)
             .ok_or(FocusError::IncorrectFocusEntry)?;
 

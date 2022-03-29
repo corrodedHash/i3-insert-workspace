@@ -60,6 +60,9 @@ fn find_workspaces_output<'a>(
 fn get_child_node_by_id(node: &Node, id: i64) -> Option<&Node> {
     node.nodes.iter().find(|x| x.id == id)
 }
+fn get_floating_child_node_by_id(node: &Node, id: i64) -> Option<&Node> {
+    node.floating_nodes.iter().find(|x| x.id == id)
+}
 
 fn is_focused(ws: &Node) -> bool {
     if ws.focused {
@@ -68,7 +71,10 @@ fn is_focused(ws: &Node) -> bool {
 
     ws.focus
         .first()
-        .and_then(|next_focus_id| get_child_node_by_id(ws, *next_focus_id))
+        .and_then(|next_focus_id| {
+            get_child_node_by_id(ws, *next_focus_id)
+                .or_else(|| get_floating_child_node_by_id(ws, *next_focus_id))
+        })
         .map_or(false, is_focused)
 }
 
@@ -78,6 +84,7 @@ fn move_workspace_to_end(source: &Node, container: Option<i64>) -> Vec<String> {
     let mut movings = source
         .nodes
         .iter()
+        .chain(source.floating_nodes.iter())
         .filter(|x| container.map_or(true, |cid| x.id != cid))
         .map(|container| {
             format!(
