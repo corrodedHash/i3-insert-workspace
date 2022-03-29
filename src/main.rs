@@ -1,13 +1,18 @@
 #![forbid(unsafe_code)]
+// Classes
+#![warn(clippy::pedantic, clippy::cargo, rustdoc::all)]
+// Stability
+#![warn(clippy::expect_used, clippy::unwrap_used, clippy::indexing_slicing)]
+// Nice code
+#![warn(clippy::unneeded_field_pattern, clippy::unneeded_wildcard_pattern)]
+// Debug remains
 #![warn(
-    clippy::pedantic,
-    clippy::indexing_slicing,
-    clippy::unwrap_used,
-    clippy::expect_used,
+    clippy::use_debug,
     clippy::print_stdout,
-    clippy::todo
+    clippy::todo,
+    clippy::unimplemented,
+    clippy::dbg_macro
 )]
-#![warn(clippy::cargo)]
 
 //! Workspace enhancement for the i3 window manager
 //! Insert a named workspace before or after another named workspace
