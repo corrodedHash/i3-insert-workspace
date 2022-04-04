@@ -20,9 +20,21 @@ use clap::Parser;
 mod docker_name;
 // mod insert_workspace_rename;
 mod insert_workspace_swap;
-use insert_workspace_swap::{insert_workspace_swap, InsertionDestination, InsertionError};
-
+use insert_workspace_swap::{
+    insert_workspace as insert_workspace_swap, InsertionError as SwapInsertionError,
+};
+mod insert_workspace_rename;
+use insert_workspace_rename::{
+    insert_workspace as insert_workspace_rename, InsertionError as RenameInsertionError,
+};
+mod util;
 use thiserror::Error;
+use util::InsertionDestination;
+#[derive(clap::ArgEnum, Clone, Debug)]
+enum InsertMode {
+    I3,
+    Sway,
+}
 
 /// Simple program to insert a named workspace before or after another workspace
 #[derive(clap::Parser, Debug)]
@@ -41,6 +53,10 @@ struct Args {
     /// Name of the new workspace
     #[clap(short, long)]
     name: Option<String>,
+
+    /// Method to insert workspace is handled differently for i3 and sway
+    #[clap(short, long, arg_enum, default_value_t=InsertMode::I3)]
+    mode: InsertMode,
 
     /// Move container to the new workspace.
     ///
@@ -128,11 +144,17 @@ fn generate_new_workspace_name(
 
 #[derive(Debug, Error)]
 enum MainError {
-    #[error("Error during insertion: {0}")]
-    Insertion(
+    #[error("Error during sway insertion: {0}")]
+    SwapInsertion(
         #[from]
         #[source]
-        InsertionError,
+        SwapInsertionError,
+    ),
+    #[error("Error during i3 insertion: {0}")]
+    RenameInsertion(
+        #[from]
+        #[source]
+        RenameInsertionError,
     ),
     #[error("Could not connect to i3 IPC: {0}")]
     Connection(
@@ -178,7 +200,10 @@ fn handle() -> Result<(), MainError> {
 
     let container_id = args.container_id.map(parse_container_id).transpose()?;
 
-    insert_workspace_swap(&mut conn, &destination, &name, container_id)?;
+    match args.mode {
+        InsertMode::I3 => insert_workspace_rename(&mut conn, &destination, &name, container_id)?,
+        InsertMode::Sway => insert_workspace_swap(&mut conn, &destination, &name, container_id)?,
+    }
     Ok(())
 }
 

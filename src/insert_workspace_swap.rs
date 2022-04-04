@@ -1,27 +1,7 @@
 use i3ipc::reply::Node;
 use thiserror::Error;
 
-/// Insert workspace before or after pivot
-#[derive(Clone, PartialEq, Eq, Debug)]
-pub enum InsertionDestination {
-    After { pivot: String },
-    Before { pivot: String },
-}
-
-impl InsertionDestination {
-    pub fn new(pivot: String, before: bool) -> Self {
-        if before {
-            Self::Before { pivot }
-        } else {
-            Self::After { pivot }
-        }
-    }
-    fn pivot(&self) -> &str {
-        match &self {
-            Self::After { pivot } | Self::Before { pivot } => pivot,
-        }
-    }
-}
+use crate::util::InsertionDestination;
 
 /// Errors for `insert_workspace`
 #[derive(Debug, Error)]
@@ -109,7 +89,7 @@ fn move_workspace_to_end(source: &Node, container: Option<i64>) -> Vec<String> {
 }
 
 /// Insert a new workspace at the given location
-pub fn insert_workspace_swap(
+pub fn insert_workspace(
     conn: &mut i3ipc::I3Connection,
     insertion_marker: &InsertionDestination,
     name: &str,
