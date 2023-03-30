@@ -30,7 +30,7 @@ use insert_workspace_rename::{
 mod util;
 use thiserror::Error;
 use util::InsertionDestination;
-#[derive(clap::ArgEnum, Clone, Debug)]
+#[derive(clap::ValueEnum, Clone, Debug)]
 enum InsertMode {
     I3,
     Sway,
@@ -55,7 +55,7 @@ struct Args {
     name: Option<String>,
 
     /// Method to insert workspace is handled differently for i3 and sway
-    #[clap(short, long, arg_enum, default_value_t=InsertMode::I3)]
+    #[clap(short, long, value_enum, default_value_t=InsertMode::I3)]
     mode: InsertMode,
 
     /// Move container to the new workspace.
@@ -209,6 +209,6 @@ fn handle() -> Result<(), MainError> {
 
 fn main() {
     if let Err(e) = handle() {
-        eprintln!("{}", e);
+        eprintln!("{e}");
     }
 }
