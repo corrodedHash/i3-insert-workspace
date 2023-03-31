@@ -50,11 +50,10 @@ pub fn insert_workspace(
         .map(|x| format!("rename workspace \"{0}\" to \"{0}\";", x.name.clone()))
         .collect();
 
-    let creation_command = if let Some(container_id) = container {
-        format!("[con_id={container_id}] move container to workspace {name}")
-    } else {
-        format!("workspace \"{name}\"")
-    };
+    let creation_command = container.map_or_else(
+        || format!("workspace \"{name}\""),
+        |container_id| format!("[con_id={container_id}] move container to workspace {name}"),
+    );
 
     conn.run_command(&format!(
         "{creation_command}; move workspace to output {output}; {}",

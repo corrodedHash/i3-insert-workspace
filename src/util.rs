@@ -6,7 +6,7 @@ pub enum InsertionDestination {
 }
 
 impl InsertionDestination {
-    pub fn new(pivot: String, before: bool) -> Self {
+    pub const fn new(pivot: String, before: bool) -> Self {
         if before {
             Self::Before { pivot }
         } else {

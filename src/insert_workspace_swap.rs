@@ -18,36 +18,44 @@ pub enum InsertionError {
     CommandError(String),
 }
 
+/// Finds the output containing the workspace named `workspace_name`
+///
+/// Returns the `Output` node, and the index of the workspace in this output node
 fn find_workspaces_output<'a>(
     root_node: &'a Node,
     workspace_name: &'_ str,
 ) -> Option<(&'a Node, usize)> {
-    assert!(root_node.nodetype == i3ipc::reply::NodeType::Root);
+    assert_eq!(root_node.nodetype, i3ipc::reply::NodeType::Root);
 
-    for output_node in &root_node.nodes {
-        assert!(output_node.nodetype == i3ipc::reply::NodeType::Output);
-        let candidate = output_node.nodes.iter().position(|x| {
-            assert!(x.nodetype == i3ipc::reply::NodeType::Workspace);
-            x.name.as_ref().map_or(false, |wn| wn == workspace_name)
-        });
-        if let Some(workspace_index) = candidate {
-            return Some((output_node, workspace_index));
-        }
-    }
-    None
+    root_node.nodes.iter().find_map(|output_node| {
+        assert_eq!(output_node.nodetype, i3ipc::reply::NodeType::Output);
+        output_node
+            .nodes
+            .iter()
+            .position(|x| {
+                assert_eq!(x.nodetype, i3ipc::reply::NodeType::Workspace);
+                x.name.as_ref().map_or(false, |wn| wn == workspace_name)
+            })
+            .map(|workspace_index| (output_node, workspace_index))
+    })
 }
 
 fn get_child_node_by_id(node: &Node, id: i64) -> Option<&Node> {
     node.nodes.iter().find(|x| x.id == id)
 }
+
 fn get_floating_child_node_by_id(node: &Node, id: i64) -> Option<&Node> {
     node.floating_nodes.iter().find(|x| x.id == id)
 }
 
+/// Check if `ws` is focused, or one of its children is focused
 fn is_focused(ws: &Node) -> bool {
     if ws.focused {
         return true;
     }
+
+    // Focus not only holds the path to the currently focused node, but also the history of older focused nodes.
+    // Thus, we iterate through it to check if the most recently focused node is currently focused.
 
     ws.focus
         .first()
@@ -75,7 +83,7 @@ fn move_workspace_to_end(source: &Node, container: Option<i64>) -> Vec<String> {
         .collect::<Vec<_>>();
     // If we move the container somewhere, we want to stay in the current workspace
     // But this workspace should be shifted none the less
-    if container.is_some() && (is_focused(source)) {
+    if container.is_some() && is_focused(source) {
         movings.push(format!("workspace {dummy_name}"));
     }
     if !movings.is_empty() {

@@ -10,34 +10,36 @@ Makes use of the i3 IPC protocol.
 ## Usage
 
 ```
-i3-insert-workspace 1.0.1
-Simple program to insert a named workspace before or after another named workspace
+i3-insert-workspace [OPTIONS]
 
-USAGE:
-    i3-insert-workspace [OPTIONS]
+Options:
+  -p, --pivot <PIVOT>
+          Workspace before or after which the new workspace is inserted.
 
-OPTIONS:
-    -b, --before
-            Insert before the pivot instead of after it
+          If no pivot given, using focused workspaces
 
-    -c, --container-id <CONTAINER_ID>
-            Move container to the new workspace.
+  -b, --before
+          Insert before the pivot instead of after it
 
-            Either provide container id, or `focused` for focused one
+  -n, --name <NAME>
+          Name of the new workspace
 
-    -h, --help
-            Print help information
+  -m, --mode <MODE>
+          Method to insert workspace is handled differently for i3 and sway
 
-    -n, --name <NAME>
-            Name of the new workspace
+          [default: i3]
+          [possible values: i3, sway]
 
-    -p, --pivot <PIVOT>
-            Workspace before or after which the new workspace is inserted.
+  -c, --container-id <CONTAINER_ID>
+          Move container to the new workspace.
 
-            If no pivot given, using focused workspaces
+          Either provide container id, or `focused` for focused one
 
-    -V, --version
-            Print version information
+  -h, --help
+          Print help (see a summary with '-h')
+
+  -V, --version
+          Print version
 ```
 
 ## Example

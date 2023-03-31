@@ -4,7 +4,11 @@
 // Stability
 #![warn(clippy::expect_used, clippy::unwrap_used, clippy::indexing_slicing)]
 // Nice code
-#![warn(clippy::unneeded_field_pattern, clippy::unneeded_wildcard_pattern)]
+#![warn(
+    clippy::unneeded_field_pattern,
+    clippy::unneeded_wildcard_pattern,
+    clippy::option_if_let_else
+)]
 // Debug remains
 #![warn(
     clippy::use_debug,
