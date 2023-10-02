@@ -11,9 +11,9 @@ categories = ["command-line-utilities", "config"]
 
 [dependencies]
 i3ipc = "0.10.1"
-clap = {version = "4.2.1", features = ["derive"]}
+clap = {version = "4.4.6", features = ["derive"]}
 rand = "0.8.5"
-thiserror = "1.0.40"
+thiserror = "1.0.49"
 
 [profile.release]
 strip = true
