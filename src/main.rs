@@ -138,12 +138,30 @@ fn generate_new_workspace_name(
         .into_iter()
         .map(|x| x.name)
         .collect::<Vec<_>>();
-    loop {
+    for _ in 0..10 {
         let new_name = docker_name::random_name();
         if !workspace_names.iter().any(|x| x == &new_name) {
             return Ok(new_name);
         }
     }
+    Ok(guaranteed_workspace_name(&workspace_names))
+}
+
+/// Fallback workspace name if for some reason no name can be generated
+fn guaranteed_workspace_name(workspace_names: &[String]) -> String {
+    const NEW_WORKSPACE_PREFIX: &str = "new_workspace_";
+    let largest_index = workspace_names
+        .iter()
+        .filter_map(|x| {
+            if !x.starts_with(NEW_WORKSPACE_PREFIX) {
+                return None;
+            }
+            let index = &x[NEW_WORKSPACE_PREFIX.len()..];
+            index.parse::<u32>().ok()
+        })
+        .max()
+        .unwrap_or(0);
+    format!("{NEW_WORKSPACE_PREFIX}{}", largest_index + 1)
 }
 
 #[derive(Debug, Error)]
