@@ -34,7 +34,7 @@ fn find_workspaces_output<'a>(
             .iter()
             .position(|x| {
                 assert_eq!(x.nodetype, i3ipc::reply::NodeType::Workspace);
-                x.name.as_ref().map_or(false, |wn| wn == workspace_name)
+                x.name.as_ref().is_some_and(|wn| wn == workspace_name)
             })
             .map(|workspace_index| (output_node, workspace_index))
     })
@@ -63,7 +63,7 @@ fn is_focused(ws: &Node) -> bool {
             get_child_node_by_id(ws, *next_focus_id)
                 .or_else(|| get_floating_child_node_by_id(ws, *next_focus_id))
         })
-        .map_or(false, is_focused)
+        .is_some_and(is_focused)
 }
 
 fn move_workspace_to_end(source: &Node, container: Option<i64>) -> Vec<String> {
@@ -73,7 +73,7 @@ fn move_workspace_to_end(source: &Node, container: Option<i64>) -> Vec<String> {
         .nodes
         .iter()
         .chain(source.floating_nodes.iter())
-        .filter(|x| container.map_or(true, |cid| x.id != cid))
+        .filter(|x| container != Some(x.id))
         .map(|container| {
             format!(
                 "[con_id={conid}] move container to workspace {dummy_name}",

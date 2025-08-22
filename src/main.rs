@@ -213,7 +213,7 @@ fn handle() -> Result<(), MainError> {
     )?;
 
     let parse_container_id = |container_id: String| {
-        if container_id.to_ascii_lowercase() == "focused" {
+        if container_id.eq_ignore_ascii_case("focused") {
             Ok(focus.container)
         } else {
             container_id.parse::<i64>()
