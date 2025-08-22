@@ -16,6 +16,8 @@ pub enum InsertionError {
 }
 
 /// Insert a new workspace at the given location
+/// 
+/// This relies on the fact that renaming a workspace moves it to the right most position in its output, as it does in i3
 #[allow(clippy::indexing_slicing)]
 pub fn insert_workspace(
     conn: &mut i3ipc::I3Connection,
